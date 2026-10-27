@@ -1,0 +1,45 @@
+services:
+  database:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: gametracker
+      POSTGRES_USER: gametracker
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-gametracker-local-change-me}
+    volumes:
+      - gametracker-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gametracker -d gametracker"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      APP_NAME: GameTracker
+      ENVIRONMENT: production
+      DATABASE_URL: postgresql+psycopg2://gametracker:${POSTGRES_PASSWORD:-gametracker-local-change-me}@database:5432/gametracker
+      SECRET_KEY: ${SECRET_KEY:-replace-this-with-a-long-random-secret-before-deploy}
+      SESSION_TTL_DAYS: ${SESSION_TTL_DAYS:-30}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:8080}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
+      STEAM_API_KEY: ${STEAM_API_KEY:-}
+      STEAM_REDIRECT_URL: ${STEAM_REDIRECT_URL:-http://localhost:8080/api/integrations/steam/callback}
+    depends_on:
+      database:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  gametracker-data:
